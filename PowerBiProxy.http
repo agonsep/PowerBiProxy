@@ -1,0 +1,6 @@
+@PowerBiProxy_HostAddress = http://localhost:5268
+
+GET {{PowerBiProxy_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
