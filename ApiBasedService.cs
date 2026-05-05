@@ -24,10 +24,14 @@ public class ApiBasedService(IHttpClientFactory httpClientFactory, PowerBiSettin
         "Cabin",                  ReportDataDev[Cabin],
         "City Pair",              ReportDataDev[City Pair],
         "COL DSAID",              ReportDataDev[COL DSAID],
+        "Company Label",          ReportDataDev[Company Label],
         "DataSourceID",           ReportDataDev[DataSourceID],
         "Depart City",            ReportDataDev[Depart City],
         "Domestic International", ReportDataDev[Domestic International],
-        "EndDate",                ReportDataDev[EndDate]
+        "Duration",               ReportDataDev[Duration],
+        "EndDate",                ReportDataDev[EndDate],
+        "InvoiceNumber",          ReportDataDev[InvoiceNumber],
+        "IssuedDate",             ReportDataDev[IssuedDate]
         """;
 
     public Task<JsonNode> GetAllAsync(string datasetId) =>

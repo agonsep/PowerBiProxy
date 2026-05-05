@@ -1,56 +1,87 @@
 using System.Text.Json.Nodes;
+using PowerBiProxy.Models;
 
 namespace PowerBiProxy;
 
-public class RlsService(ApiBasedService apiService, PowerBiSettings settings)
+public class RlsService(XmlaService xmla)
 {
-    private const string RoleName = "AgencyIdFilter";
-
     private const string ColumnProjection = """
         "AccountID",              ReportDataDev[AccountID],
-        "AccountName",            ReportDataDev[AccountName],
-        "Adv Bucket",             ReportDataDev[Adv Bucket],
-        "Advance Purchase",       ReportDataDev[Advance Purchase],
-        "APG",                    ReportDataDev[APG],
-        "Arrive City",            ReportDataDev[Arrive City],
-        "Booking Source",         ReportDataDev[Booking Source],
-        "Booking Type",           ReportDataDev[Booking Type],
+        "Account Label",            ReportDataDev[Account Label],        
+        "Advance Purchase",       ReportDataDev[Advance Purchase],        
+        "ArriveCity",            ReportDataDev[ArriveCity],
+        "Booking Source",         ReportDataDev[Booking Source],        
         "Bookingdate",            ReportDataDev[Bookingdate],
         "BookingTypeName",        ReportDataDev[BookingTypeName],
-        "Cabin",                  ReportDataDev[Cabin],
-        "City Pair",              ReportDataDev[City Pair],
+        "Cabin",                  ReportDataDev[Cabin],        
         "COL DSAID",              ReportDataDev[COL DSAID],
+        "Company Label",          ReportDataDev[Company Label],
         "DataSourceID",           ReportDataDev[DataSourceID],
-        "Depart City",            ReportDataDev[Depart City],
         "Domestic International", ReportDataDev[Domestic International],
-        "EndDate",                ReportDataDev[EndDate]
+        "Duration",               ReportDataDev[Duration],
+        "EndDate",                ReportDataDev[EndDate],
+        "InvoiceNumber",          ReportDataDev[InvoiceNumber],
+        "IssuedDate",             ReportDataDev[IssuedDate]
         """;
 
-    public Task<JsonNode> GetAllAsync(string datasetId, string dataSourceId) =>
+
+
+    public Task<JsonNode> GetAllAsync(string datasetName, string dataSourceId) =>
         ExecuteWithRlsAsync(
             $"EVALUATE TOPN(10, SELECTCOLUMNS(ReportDataDev, {ColumnProjection}))",
-            datasetId, dataSourceId);
+            datasetName, dataSourceId);
 
-    public Task<JsonNode> GetAccountIdsAsync(string datasetId, string dataSourceId) =>
+    public Task<JsonNode> GetAccountIdsAsync(string datasetName, string dataSourceId) =>
         ExecuteWithRlsAsync(
             "EVALUATE DISTINCT(SELECTCOLUMNS(ReportDataDev, \"AccountID\", ReportDataDev[AccountID]))",
-            datasetId, dataSourceId);
+            datasetName, dataSourceId);
 
-    private async Task<JsonNode> ExecuteWithRlsAsync(string dax, string datasetId, string dataSourceId)
+    public Task<JsonNode> FilterByAccountIdsAsync(
+        string datasetName, string dataSourceId, AccountIdsFilterRequest request)
     {
-        // Step 1 — get a service-principal access token
-        var spToken = await apiService.GetAccessTokenAsync();
-
-        // Step 2 — exchange it for an embed token that has the RLS effective identity baked in.
-        //           customData becomes the value CUSTOMDATA() returns in the DAX RLS filter:
-        //               [DataSourceID] == VALUE(CUSTOMDATA())
-        var embedToken = await apiService.GenerateEmbedTokenAsync(
-            spToken, datasetId,
-            username:   settings.RlsUsername,
-            roles:      [RoleName],
-            customData: dataSourceId);
-
-        // Step 3 — run the DAX query using the embed token (RLS is already baked in)
-        return await apiService.ExecuteDaxWithTokenAsync(dax, datasetId, embedToken);
+        var idList = string.Join(", ", request.AccountIds.Select(id => $"\"{id}\""));
+        var dax = $$"""
+            EVALUATE
+            SELECTCOLUMNS(
+                FILTER(ReportDataDev, ReportDataDev[AccountID] IN {{{idList}}}),
+                {{ColumnProjection}}
+            )
+            """;
+        return ExecuteWithRlsAsync(dax, datasetName, dataSourceId);
     }
+
+    public Task<JsonNode> FilterByCityAndDateAsync(
+        string datasetName, string dataSourceId, CityDateFilterRequest request)
+    {
+        var conditions = new List<string>();
+
+        if (!string.IsNullOrWhiteSpace(request.DepartCity))
+            conditions.Add($"ReportDataDev[Depart City] = \"{request.DepartCity}\"");
+
+        if (!string.IsNullOrWhiteSpace(request.ArriveCity))
+            conditions.Add($"ReportDataDev[Arrive City] = \"{request.ArriveCity}\"");
+
+        if (request.IssuedDateFrom.HasValue)
+            conditions.Add($"ReportDataDev[IssuedDate] >= DATE({request.IssuedDateFrom.Value.Year}, {request.IssuedDateFrom.Value.Month}, {request.IssuedDateFrom.Value.Day})");
+
+        if (request.IssuedDateTo.HasValue)
+            conditions.Add($"ReportDataDev[IssuedDate] <= DATE({request.IssuedDateTo.Value.Year}, {request.IssuedDateTo.Value.Month}, {request.IssuedDateTo.Value.Day})");
+
+        var source = conditions.Count > 0
+            ? $"FILTER(ReportDataDev, {string.Join(" && ", conditions)})"
+            : "ReportDataDev";
+
+        var dax = $"""
+            EVALUATE
+            SELECTCOLUMNS(
+                {source},
+                {ColumnProjection}
+            )
+            """;
+
+        return ExecuteWithRlsAsync(dax, datasetName, dataSourceId);
+    }
+
+    private Task<JsonNode> ExecuteWithRlsAsync(string dax, string datasetName, string dataSourceId) =>
+        xmla.ExecuteDaxAsync(dax, datasetName, dataSourceId);
 }

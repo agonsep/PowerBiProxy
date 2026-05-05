@@ -15,7 +15,8 @@ builder.Services.AddHttpClient("entra");
 builder.Services.AddHttpClient("powerbi");
 builder.Services.AddScoped<ApiBasedService>();
 
-// RLS — wraps ApiBasedService, adds effectiveIdentities to each request
+// RLS — XMLA endpoint with CustomData for CUSTOMDATA()-based RLS
+builder.Services.AddSingleton<XmlaService>();
 builder.Services.AddScoped<RlsService>();
 
 builder.Services.AddControllers();
