@@ -20,7 +20,6 @@ builder.Services.AddSingleton<XmlaService>();
 builder.Services.AddScoped<RlsService>();
 
 // Azure AI Foundry agent — answers questions over RLS-fetched data
-builder.Services.AddHttpClient("foundry");
 builder.Services.AddSingleton<FoundryAgentService>();
 
 builder.Services.AddControllers();

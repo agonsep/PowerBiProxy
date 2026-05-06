@@ -7,10 +7,13 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Azure.AI.Extensions.OpenAI" Version="2.1.0-beta.1" />
+    <PackageReference Include="Azure.AI.Projects" Version="2.1.0-beta.1" />
     <PackageReference Include="Azure.Identity" Version="1.21.0" />
     <PackageReference Include="Microsoft.AnalysisServices.AdomdClient.NetCore.retail.amd64" Version="19.84.1" />
     <PackageReference Include="Microsoft.PowerBI.Api" Version="4.21.1" />
     <PackageReference Include="Microsoft.Rest.ClientRuntime" Version="2.3.24" />
+    <PackageReference Include="OpenAI" Version="2.10.0" />
   </ItemGroup>
 
 </Project>
