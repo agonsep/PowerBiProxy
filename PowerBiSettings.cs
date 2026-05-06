@@ -8,4 +8,10 @@ public class PowerBiSettings
     public string WorkspaceId { get; set; } = "ab71489d-418c-4bb8-9b64-846c31bd1e35";
     // Display name of the workspace — used for the XMLA connection string
     public string WorkspaceName { get; set; } = string.Empty;
+
+    // Azure AI Foundry agent settings
+    // FoundryEndpoint: e.g. https://<project>.services.ai.azure.com/api/projects/<project-name>
+    public string FoundryEndpoint   { get; set; } = string.Empty;
+    public string FoundryAgentId    { get; set; } = string.Empty;
+    public string FoundryApiVersion { get; set; } = "2025-05-01";
 }

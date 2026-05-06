@@ -5,8 +5,8 @@ namespace PowerBiProxy.Controllers;
 
 [ApiController]
 [Route("[controller]")]
-public class RlsReportDataQueriesController(RlsService rls) : ControllerBase
-{    
+public class RlsReportDataQueriesController(RlsService rls, FoundryAgentService foundry) : ControllerBase
+{
     private const string DatasetName      = "Spend Summary Air";
     private const string DataSourceHeader = "X-DataSource-Id";
 
@@ -51,6 +51,21 @@ public class RlsReportDataQueriesController(RlsService rls) : ControllerBase
 
         var result = await rls.FilterByCityAndDateAsync(DatasetName, dataSourceId, request);
         return Ok(result);
+    }
+
+    [HttpPost("ask")]
+    public async Task<IActionResult> Ask([FromBody] AskRequest request)
+    {
+        if (!TryGetDataSourceId(out var dataSourceId))
+            return BadRequest($"Missing required header: {DataSourceHeader}");
+
+        if (string.IsNullOrWhiteSpace(request.Question))
+            return BadRequest("Question is required.");
+
+        var data   = await rls.FetchForAskAsync(DatasetName, dataSourceId, request);
+        var answer = await foundry.AskAsync(request.Question, data, HttpContext.RequestAborted);
+
+        return Ok(new { answer });
     }
 
     private bool TryGetDataSourceId(out string dataSourceId)

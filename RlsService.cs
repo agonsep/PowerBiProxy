@@ -7,13 +7,13 @@ public class RlsService(XmlaService xmla)
 {
     private const string ColumnProjection = """
         "AccountID",              ReportDataDev[AccountID],
-        "Account Label",            ReportDataDev[Account Label],        
-        "Advance Purchase",       ReportDataDev[Advance Purchase],        
+        "Account Label",            ReportDataDev[Account Label],
+        "Advance Purchase",       ReportDataDev[Advance Purchase],
         "ArriveCity",            ReportDataDev[ArriveCity],
-        "Booking Source",         ReportDataDev[Booking Source],        
+        "Booking Source",         ReportDataDev[Booking Source],
         "Bookingdate",            ReportDataDev[Bookingdate],
         "BookingTypeName",        ReportDataDev[BookingTypeName],
-        "Cabin",                  ReportDataDev[Cabin],        
+        "Cabin",                  ReportDataDev[Cabin],
         "COL DSAID",              ReportDataDev[COL DSAID],
         "Company Label",          ReportDataDev[Company Label],
         "DataSourceID",           ReportDataDev[DataSourceID],
@@ -23,8 +23,6 @@ public class RlsService(XmlaService xmla)
         "InvoiceNumber",          ReportDataDev[InvoiceNumber],
         "IssuedDate",             ReportDataDev[IssuedDate]
         """;
-
-
 
     public Task<JsonNode> GetAllAsync(string datasetName, string dataSourceId) =>
         ExecuteWithRlsAsync(
@@ -37,49 +35,58 @@ public class RlsService(XmlaService xmla)
             datasetName, dataSourceId);
 
     public Task<JsonNode> FilterByAccountIdsAsync(
-        string datasetName, string dataSourceId, AccountIdsFilterRequest request)
-    {
-        var idList = string.Join(", ", request.AccountIds.Select(id => $"\"{id}\""));
-        var dax = $$"""
-            EVALUATE
-            SELECTCOLUMNS(
-                FILTER(ReportDataDev, ReportDataDev[AccountID] IN {{{idList}}}),
-                {{ColumnProjection}}
-            )
-            """;
-        return ExecuteWithRlsAsync(dax, datasetName, dataSourceId);
-    }
+        string datasetName, string dataSourceId, AccountIdsFilterRequest request) =>
+        ExecuteWithRlsAsync(
+            BuildFilteredDax(new AskRequest("", request.AccountIds, null, null, null, null)),
+            datasetName, dataSourceId);
 
     public Task<JsonNode> FilterByCityAndDateAsync(
-        string datasetName, string dataSourceId, CityDateFilterRequest request)
+        string datasetName, string dataSourceId, CityDateFilterRequest request) =>
+        ExecuteWithRlsAsync(
+            BuildFilteredDax(new AskRequest("",
+                null,
+                request.DepartCity,
+                request.ArriveCity,
+                request.IssuedDateFrom,
+                request.IssuedDateTo)),
+            datasetName, dataSourceId);
+
+    // Used by the /ask endpoint — fetches the rows the LLM will reason over.
+    public Task<JsonNode> FetchForAskAsync(
+        string datasetName, string dataSourceId, AskRequest request) =>
+        ExecuteWithRlsAsync(BuildFilteredDax(request), datasetName, dataSourceId);
+
+    private static string BuildFilteredDax(AskRequest req)
     {
         var conditions = new List<string>();
 
-        if (!string.IsNullOrWhiteSpace(request.DepartCity))
-            conditions.Add($"ReportDataDev[Depart City] = \"{request.DepartCity}\"");
+        if (req.AccountIds is { Count: > 0 })
+        {
+            var idList = string.Join(", ", req.AccountIds);
+            conditions.Add($"ReportDataDev[AccountID] IN {{{idList}}}");
+        }
+        
 
-        if (!string.IsNullOrWhiteSpace(request.ArriveCity))
-            conditions.Add($"ReportDataDev[Arrive City] = \"{request.ArriveCity}\"");
+        if (!string.IsNullOrWhiteSpace(req.ArriveCity))
+            conditions.Add($"ReportDataDev[ArriveCity] = \"{req.ArriveCity}\"");
 
-        if (request.IssuedDateFrom.HasValue)
-            conditions.Add($"ReportDataDev[IssuedDate] >= DATE({request.IssuedDateFrom.Value.Year}, {request.IssuedDateFrom.Value.Month}, {request.IssuedDateFrom.Value.Day})");
+        if (req.IssuedDateFrom.HasValue)
+            conditions.Add($"ReportDataDev[IssuedDate] >= DATE({req.IssuedDateFrom.Value.Year}, {req.IssuedDateFrom.Value.Month}, {req.IssuedDateFrom.Value.Day})");
 
-        if (request.IssuedDateTo.HasValue)
-            conditions.Add($"ReportDataDev[IssuedDate] <= DATE({request.IssuedDateTo.Value.Year}, {request.IssuedDateTo.Value.Month}, {request.IssuedDateTo.Value.Day})");
+        if (req.IssuedDateTo.HasValue)
+            conditions.Add($"ReportDataDev[IssuedDate] <= DATE({req.IssuedDateTo.Value.Year}, {req.IssuedDateTo.Value.Month}, {req.IssuedDateTo.Value.Day})");
 
         var source = conditions.Count > 0
             ? $"FILTER(ReportDataDev, {string.Join(" && ", conditions)})"
             : "ReportDataDev";
 
-        var dax = $"""
+        return $"""
             EVALUATE
             SELECTCOLUMNS(
                 {source},
                 {ColumnProjection}
             )
             """;
-
-        return ExecuteWithRlsAsync(dax, datasetName, dataSourceId);
     }
 
     private Task<JsonNode> ExecuteWithRlsAsync(string dax, string datasetName, string dataSourceId) =>
